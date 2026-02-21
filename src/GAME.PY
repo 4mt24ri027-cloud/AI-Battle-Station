@@ -7,7 +7,7 @@ import time
 import numpy as np
 
 # --- CONFIGURATION ---
-LEADERBOARD_FILE = "leaderboard.json"
+LEADERBOARD_FILE = "../leaderboard.json"
 DEFAULT_ROUNDS = 3
 
 # Colors (B, G, R)
@@ -268,3 +268,4 @@ while True:
 
 cap.release()
 cv2.destroyAllWindows()
+
