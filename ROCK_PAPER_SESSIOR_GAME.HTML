@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Battle Station Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@300;400;700&display=swap');
+        body { font-family: 'Roboto', sans-serif; background-color: #020617; color: white; overflow: hidden; }
+        .digital-font { font-family: 'Orbitron', sans-serif; }
+        .camera-container { position: relative; width: 100%; height: 100%; border-radius: 1rem; overflow: hidden; border: 3px solid #3b82f6; background: #000; box-shadow: 0 0 25px rgba(59, 130, 246, 0.4); transition: all 0.3s ease; }
+        video, canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        .glass { background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.1); }
+        @keyframes pop { 0% {transform: scale(0);} 80% {transform: scale(1.1);} 100% {transform: scale(1);} }
+        .pop-anim { animation: pop 0.3s ease-out forwards; }
+        
+        /* Bonus Mode Styles */
+        .bonus-active { border-color: #eab308 !important; box-shadow: 0 0 40px rgba(234, 179, 8, 0.6) !important; }
+    </style>
+</head>
+<body class="flex h-screen w-screen p-4 gap-4 bg-slate-950">
+
+    <!-- LEFT: GAME AREA -->
+    <div class="w-3/4 flex flex-col gap-4 h-full">
+        <!-- Header -->
+        <div class="glass p-4 rounded-xl flex justify-between items-center transition-all" id="headerBox">
+            <div>
+                <h1 class="text-3xl font-bold text-yellow-400 digital-font tracking-wider">AI BATTLE STATION</h1>
+                <p class="text-gray-400 text-xs">COMPUTER VISION // SMART MEMORY SYSTEM</p>
+            </div>
+            <div class="text-right">
+                <div class="text-xs text-blue-300 uppercase">Current Challenger</div>
+                <div class="flex items-end justify-end gap-2">
+                    <div class="text-3xl font-bold tracking-widest text-white" id="displayPlayer">GUEST</div>
+                    <div class="text-sm text-green-400 mb-1 digital-font hidden" id="highScoreBadge">BEST: 0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Camera -->
+        <div class="camera-container flex-grow relative" id="camContainer">
+            <video id="webcam" autoplay playsinline></video>
+            <canvas id="output_canvas"></canvas>
+            
+            <div id="errorBox" class="absolute inset-0 bg-red-900/90 z-50 hidden flex flex-col items-center justify-center p-10 text-center">
+                <h2 class="text-4xl font-bold text-white mb-4">CAMERA BLOCKED 🚫</h2>
+                <p class="text-white">Please Open with VS Code Live Server OR the Python Launcher</p>
+            </div>
+
+            <!-- Bonus Notification Banner -->
+            <div id="bonusMsg" class="absolute top-10 left-0 right-0 text-center hidden z-30">
+                <div class="inline-block bg-yellow-500 text-black font-bold px-8 py-3 rounded-full digital-font text-2xl shadow-[0_0_30px_rgba(234,179,8,0.8)] pop-anim border-4 border-white">
+                    🌟 BONUS ROUND UNLOCKED! 🌟
+                </div>
+            </div>
+
+            <div class="absolute bottom-6 left-6 z-10">
+                <div class="bg-black/60 px-4 py-2 rounded border-l-4 border-yellow-500 backdrop-blur-sm">
+                    <p class="text-gray-300 text-xs uppercase">AI Vision</p>
+                    <p class="text-3xl text-yellow-300 digital-font" id="gestureText">WAITING...</p>
+                </div>
+            </div>
+
+            <div id="overlay" class="absolute inset-0 bg-black/90 z-20 hidden flex flex-col items-center justify-center">
+                <div class="text-center">
+                    <h2 class="text-9xl font-bold mb-4 digital-font pop-anim" id="winText">WIN</h2>
+                    <p class="text-4xl text-blue-400 digital-font" id="pcText">PC: ...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="glass p-4 rounded-xl flex justify-between items-center h-24">
+            <div class="flex gap-4 h-full">
+                <button onclick="playRound()" id="btnFight" class="bg-green-600 hover:bg-green-500 text-white font-bold px-8 rounded-lg text-2xl shadow-[0_0_15px_rgba(34,197,94,0.5)] transition transform active:scale-95 w-64 border-b-4 border-green-800">
+                    FIGHT [SPACE]
+                </button>
+                <button onclick="newPlayer()" class="bg-slate-700 hover:bg-slate-600 text-white px-6 rounded-lg font-bold border-b-4 border-slate-900 transition">
+                    NEXT STUDENT
+                </button>
+            </div>
+            <div class="text-center px-8 border-l border-gray-600">
+                <div class="text-gray-400 text-xs uppercase">Round Score</div>
+                <div class="text-5xl font-bold text-green-400 digital-font" id="scoreText">0/3</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT: LEADERBOARD -->
+    <div class="w-1/4 flex flex-col gap-4 h-full">
+        <div class="glass p-5 rounded-xl flex-grow flex flex-col relative overflow-hidden">
+            <h2 class="text-xl font-bold text-blue-400 mb-4 pb-2 border-b border-gray-700 digital-font">🏆 HALL OF FAME</h2>
+            <div class="flex-grow overflow-y-auto space-y-2 pr-1" id="leaderboard"></div>
+            <button onclick="clearData()" class="text-xs text-red-500 underline mt-2 text-right opacity-50 hover:opacity-100">Reset Data</button>
+        </div>
+        
+        <!-- INSTRUCTIONS PANEL -->
+        <div class="glass p-5 rounded-xl">
+            <h3 class="text-purple-400 font-bold mb-2 text-sm digital-font uppercase">HOW TO PLAY</h3>
+            <ul class="text-gray-300 text-sm list-disc pl-4 space-y-1">
+                <li>Enter your Name.</li>
+                <li>Stand back 1 meter.</li>
+                <li>Show Hand & Press SPACE.</li>
+                <li>Win 3 rounds to top the board!</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- MAIN LOGIN MODAL -->
+    <div id="modal" class="fixed inset-0 bg-black/95 z-50 flex items-center justify-center">
+        <div class="text-center w-96 p-6 rounded-2xl border border-blue-900 bg-slate-900 shadow-2xl">
+            <h2 class="text-4xl font-bold text-white mb-4 digital-font text-blue-400">LOGIN</h2>
+            <p class="text-gray-400 mb-6 text-sm">Enter name to load profile</p>
+            <input type="text" id="nameIn" placeholder="YOUR NAME" class="w-full bg-black text-white text-center text-2xl p-4 rounded-lg border border-blue-600 outline-none uppercase mb-6 focus:shadow-[0_0_20px_rgba(37,99,235,0.6)] transition" autofocus>
+            <button onclick="startGame()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-lg text-xl shadow-lg transition">START GAME</button>
+        </div>
+    </div>
+
+    <!-- BONUS ADMIN MODAL (Hidden) -->
+    <div id="bonusModal" class="fixed inset-0 bg-yellow-900/90 z-[60] flex items-center justify-center hidden">
+        <div class="text-center w-96 p-6 rounded-2xl border-4 border-yellow-500 bg-black shadow-2xl">
+            <h2 class="text-3xl font-bold text-yellow-400 mb-4 digital-font">GRANT BONUS</h2>
+            <p class="text-white mb-6 text-sm">Who gets the extra chance?</p>
+            <input type="text" id="bonusNameIn" placeholder="STUDENT NAME" class="w-full bg-slate-900 text-yellow-400 text-center text-2xl p-4 rounded-lg border border-yellow-600 outline-none uppercase mb-6" autofocus>
+            <button onclick="confirmBonus()" class="w-full bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-4 rounded-lg text-xl shadow-lg transition">UNLOCK ROUND</button>
+            <button onclick="document.getElementById('bonusModal').classList.add('hidden')" class="mt-4 text-gray-400 hover:text-white underline">Cancel</button>
+        </div>
+    </div>
+
+    <script type="module">
+        let player = "Guest";
+        let score = 0;
+        let rounds = 0;
+        let maxRounds = 3; 
+        let currentGesture = "UNKNOWN";
+        let locked = false;
+
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('output_canvas');
+        const ctx = canvas.getContext('2d');
+        let hands;
+
+        function onResults(results) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+            
+            currentGesture = "UNKNOWN";
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                for (const landmarks of results.multiHandLandmarks) {
+                    drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 4});
+                    drawLandmarks(ctx, landmarks, {color: '#FF0000', lineWidth: 2});
+                    currentGesture = predict(landmarks);
+                }
+            }
+            const txt = document.getElementById('gestureText');
+            txt.innerText = currentGesture;
+            txt.className = "text-3xl digital-font " + (currentGesture === "UNKNOWN" ? "text-gray-500" : "text-yellow-400");
+        }
+
+        function predict(lm) {
+            let fingers = [0,0,0,0,0];
+            if (lm[4].x < lm[3].x) fingers[0] = 1; 
+            if (lm[8].y < lm[6].y) fingers[1] = 1;
+            if (lm[12].y < lm[10].y) fingers[2] = 1;
+            if (lm[16].y < lm[14].y) fingers[3] = 1;
+            if (lm[20].y < lm[18].y) fingers[4] = 1;
+
+            let total = fingers[1] + fingers[2] + fingers[3] + fingers[4];
+            if (total == 0) return "ROCK";
+            if (total >= 4) return "PAPER";
+            if (total == 2 || total == 1) return "SCISSORS"; 
+            return "UNKNOWN";
+        }
+
+        window.startGame = () => {
+            const n = document.getElementById('nameIn').value.trim().toUpperCase();
+            if(n) {
+                player = n;
+                let b = JSON.parse(localStorage.getItem('ai_lb')) || [];
+                let existing = b.find(item => item.n === n);
+                document.getElementById('displayPlayer').innerText = player;
+                const badge = document.getElementById('highScoreBadge');
+                if (existing) {
+                    badge.innerText = `BEST: ${existing.s}`;
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+                document.getElementById('modal').classList.add('hidden');
+                resetVars();
+            }
+        };
+
+        window.newPlayer = () => {
+            document.getElementById('modal').classList.remove('hidden');
+            document.getElementById('nameIn').value = "";
+            setTimeout(() => document.getElementById('nameIn').focus(), 100);
+        };
+
+        function resetVars() {
+            score = 0; 
+            rounds = 0; 
+            maxRounds = 3; 
+            locked = false;
+            
+            // UI Resets
+            document.getElementById('scoreText').innerText = `0/${maxRounds}`;
+            const btn = document.getElementById('btnFight');
+            btn.innerText = "FIGHT [SPACE]";
+            btn.disabled = false;
+            btn.classList.remove('bg-gray-600', 'bg-yellow-600');
+            btn.classList.add('bg-green-600');
+            
+            document.getElementById('camContainer').classList.remove('bonus-active');
+            document.getElementById('bonusMsg').classList.add('hidden');
+        }
+
+        // --- NEW BONUS LOGIC ---
+        window.openBonusModal = () => {
+            document.getElementById('bonusModal').classList.remove('hidden');
+            document.getElementById('bonusNameIn').value = "";
+            setTimeout(() => document.getElementById('bonusNameIn').focus(), 100);
+        }
+
+        window.confirmBonus = () => {
+            const n = document.getElementById('bonusNameIn').value.trim().toUpperCase();
+            if (!n) return;
+
+            let b = JSON.parse(localStorage.getItem('ai_lb')) || [];
+            let existing = b.find(item => item.n === n);
+
+            if (!existing) {
+                alert("Student not found! Please register them first.");
+                return;
+            }
+
+            // Load the student profile
+            player = existing.n;
+            score = existing.s;
+            
+            // Set state to "Finished Standard Game" then add 1
+            rounds = 3; 
+            maxRounds = 4; 
+            locked = false;
+
+            // Update UI
+            document.getElementById('displayPlayer').innerText = player;
+            document.getElementById('highScoreBadge').innerText = `BEST: ${score}`;
+            document.getElementById('highScoreBadge').classList.remove('hidden');
+            document.getElementById('bonusModal').classList.add('hidden');
+
+            // Unlock UI
+            const btn = document.getElementById('btnFight');
+            btn.disabled = false;
+            btn.innerText = "BONUS ROUND";
+            btn.classList.remove('bg-green-600', 'bg-gray-600');
+            btn.classList.add('bg-yellow-600'); 
+            
+            document.getElementById('scoreText').innerText = `${score}/${maxRounds}`;
+            document.getElementById('camContainer').classList.add('bonus-active');
+            document.getElementById('bonusMsg').classList.remove('hidden');
+            
+            setTimeout(() => {
+                document.getElementById('bonusMsg').classList.add('hidden');
+            }, 3000);
+        }
+
+        window.playRound = async () => {
+            if(locked || rounds >= maxRounds) return;
+            
+            let move = currentGesture === "UNKNOWN" ? "PAPER" : currentGesture;
+            locked = true;
+
+            const opts = ["ROCK", "PAPER", "SCISSORS"];
+            const overlay = document.getElementById('overlay');
+            const pcText = document.getElementById('pcText');
+            const winText = document.getElementById('winText');
+            
+            overlay.classList.remove('hidden');
+            winText.innerText = "VS";
+            winText.className = "text-9xl font-bold mb-4 digital-font text-white";
+
+            for(let i=0; i<8; i++) {
+                pcText.innerText = "PC: " + opts[i % 3];
+                await new Promise(r => setTimeout(r, 60));
+            }
+
+            const pc = opts[Math.floor(Math.random()*3)];
+            pcText.innerText = "PC: " + pc;
+            
+            let res = "DRAW";
+            if((move=="ROCK" && pc=="SCISSORS") || (move=="SCISSORS" && pc=="PAPER") || (move=="PAPER" && pc=="ROCK")) {
+                res = "WIN"; score++;
+            } else if (move !== pc) res = "LOSE";
+
+            rounds++;
+            document.getElementById('scoreText').innerText = `${score}/${maxRounds}`;
+            
+            winText.innerText = res === "WIN" ? "YOU WON!" : res === "LOSE" ? "PC WINS" : "DRAW";
+            winText.className = "text-8xl font-bold mb-4 digital-font pop-anim " + (res=="WIN"?"text-green-500":res=="LOSE"?"text-red-500":"text-yellow-400");
+
+            setTimeout(() => { overlay.classList.add('hidden'); locked = false; }, 2000);
+
+            if(rounds >= maxRounds) {
+                setTimeout(() => {
+                    saveScore(player, score);
+                    const btn = document.getElementById('btnFight');
+                    btn.innerText = "GAME OVER";
+                    btn.disabled = true;
+                    btn.classList.remove('bg-green-600', 'bg-yellow-600');
+                    btn.classList.add('bg-gray-600');
+                }, 2000);
+            }
+        };
+
+        try {
+            hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+            hands.setOptions({maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5});
+            hands.onResults(onResults);
+        } catch(e) { console.error(e); }
+
+        async function initCam() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({video:{width:1280,height:720}});
+                video.srcObject = stream;
+                video.play();
+                const loop = async () => {
+                    if(video.readyState>=2) {
+                        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+                        await hands.send({image: video});
+                    }
+                    requestAnimationFrame(loop);
+                };
+                loop();
+            } catch (err) {
+                document.getElementById('errorBox').classList.remove('hidden');
+            }
+        }
+        initCam();
+
+        function saveScore(n, s) {
+            let b = JSON.parse(localStorage.getItem('ai_lb')) || [];
+            let index = b.findIndex(item => item.n === n);
+            if (index !== -1) {
+                if (s > b[index].s) b[index].s = s;
+            } else {
+                b.push({n, s});
+            }
+            b.sort((x,y) => y.s - x.s);
+            localStorage.setItem('ai_lb', JSON.stringify(b));
+            renderLB();
+        }
+
+        function renderLB() {
+            const list = document.getElementById('leaderboard');
+            let b = JSON.parse(localStorage.getItem('ai_lb')) || [];
+            list.innerHTML = b.slice(0,10).map((x, i) => `
+                <div class="flex justify-between bg-slate-800 p-2 rounded border border-slate-700 items-center">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-500 digital-font text-sm">#${i+1}</span>
+                        <span class="font-bold tracking-wide text-sm">${x.n}</span>
+                    </div>
+                    <span class="text-green-400 font-bold digital-font text-lg">${x.s}</span>
+                </div>
+            `).join('');
+        }
+        window.clearData = () => { localStorage.removeItem('ai_lb'); renderLB(); };
+        
+        document.addEventListener('keydown', e => {
+            // IGNORE KEYS IF A MODAL IS OPEN
+            const loginHidden = document.getElementById('modal').classList.contains('hidden');
+            const bonusHidden = document.getElementById('bonusModal').classList.contains('hidden');
+
+            if (e.code === "Enter") {
+                if (!loginHidden) window.startGame();
+                else if (!bonusHidden) window.confirmBonus();
+            }
+
+            // Only allow Space/B/N if no modals are open
+            if (loginHidden && bonusHidden) {
+                if(e.code==="Space") window.playRound();
+                if(e.code==="KeyB") window.openBonusModal();
+                if(e.code==="KeyN") window.newPlayer();
+            }
+        });
+        renderLB();
+    </script>
+</body>
+</html>
