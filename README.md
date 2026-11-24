@@ -1,5 +1,5 @@
 # AI-Battle-Station
-eal-time Rock-Paper-Scissors game using MediaPipe and OpenCV. Now you battle wit AI see who are the ultimate winner of Rock ,Paper and scissor(single player mode)
+Real-time Rock-Paper-Scissors game using MediaPipe and OpenCV. Now you battle wit AI see who are the ultimate winner of Rock ,Paper and scissor(single player mode)
 🎮 AI Battle Station: Real-Time Gesture Recognition
 A Computer Vision-powered Rock-Paper-Scissors game featuring a Deep Learning hand-tracking system, a persistent leaderboard, and dual-platform deployment (Python & Web).
 
